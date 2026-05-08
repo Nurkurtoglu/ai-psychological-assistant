@@ -1,11 +1,11 @@
 import { type Request, type Response } from 'express';
-import { aiModel } from '../config/gemini.js';
+import { aiModel, embeddingModel } from '../config/gemini.js';
 import Session from '../models/Session.js';
 import User from '../models/User.js';
+import Knowledge from '../models/Knowledge.js';
 
 export const sendMessage = async (req: Request, res: Response): Promise<void> => {
     try {
-
         const { kullaniciMesaji, anlikDuygu } = req.body;
 
         if (!kullaniciMesaji) {
@@ -13,20 +13,67 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        // Yapay zekaya göndereceğimiz arka plan prompt'unu hazırlıyoruz
-        // Bu sayede AI, kullanıcının o anki yüz ifadesini de bilecek!
-        const aiPrompt = `
+        // ==========================================
+        // 1. RAG SİSTEMİ: MESAJI VEKTÖRE ÇEVİR
+        // ==========================================
+        const queryEmbeddingResult = await embeddingModel.embedContent(kullaniciMesaji);
+        const queryVector = queryEmbeddingResult.embedding.values;
+
+        // ==========================================
+        // 2. MONGODB'DEN BENZER TAVSİYELERİ BUL
+        // ==========================================
+        const kaynaklar = await Knowledge.aggregate([
+            {
+                "$vectorSearch": {
+                    "index": "vector_index_rag",
+                    "path": "embedding",
+                    "queryVector": queryVector,
+                    "numCandidates": 10,
+                    "limit": 3 // En iyi 3 paragraf
+                }
+            },
+            {
+                "$project": {
+                    "baslik": 1,
+                    "icerik": 1
+                }
+            }
+        ]);
+
+        // ==========================================
+        // 3. BULUNAN PDF BİLGİLERİNİ BİRLEŞTİR
+        // ==========================================
+        let psikolojikBaglam = "";
+        if (kaynaklar.length > 0) {
+            psikolojikBaglam = kaynaklar.map(k => `Kitap/Bölüm (${k.baslik}): ${k.icerik}`).join("\n\n");
+        } else {
+            psikolojikBaglam = "Veritabanında doğrudan eşleşen bir teknik bulunamadı. Genel empatik yeteneklerini kullan.";
+        }
+
+        // ==========================================
+        // 4. GEMINI'YE O EFSANEVİ PROMPT'U GÖNDER
+        // ==========================================
+        const finalPrompt = `
+      Sen Zihin Dostu adında uzman, empatik ve destekleyici bir psikolojik asistansın.
       Kullanıcının kameradan okunan anlık duygu durumu: ${anlikDuygu || 'Bilinmiyor'}
-      Kullanıcının mesajı: "${kullaniciMesaji}"
       
-      Lütfen kullanıcının duygu durumunu da göz önünde bulundurarak ona uygun empatik bir yanıt ver.
+      Aşağıda, senin kendi zihninden (veritabanından) çekilmiş güvenilir, bilimsel psikolojik kaynaklar (kitap özetleri, teknikler) var:
+      """
+      ${psikolojikBaglam}
+      """
+      
+      KULLANICI MESAJI: "${kullaniciMesaji}"
+      
+      GÖREVİN: 
+      1. Kullanıcının şu anki "${anlikDuygu || 'Bilinmiyor'}" duygusunu göz önünde bulundurarak çok şefkatli ve empatik bir giriş yap.
+      2. Yukarıdaki güvenilir kaynaklarda yer alan teknikleri (nefes, düşünce düzeltme vb.) kullanarak kullanıcıya adım adım, pratik tavsiyeler ver. Asla "Şu kaynağa göre" deme, sanki bu teknikleri sen kendin biliyormuşsun gibi doğal bir dille anlat.
+      3. Cevabın bir psikoloğun odasındaymış gibi sıcak olsun, bir robot gibi liste sunma.
     `;
 
-        // Gemini'ye soruyu soruyoruz
-        const result = await aiModel.generateContent(aiPrompt);
+        const result = await aiModel.generateContent(finalPrompt);
         const aiCevabi = result.response.text();
 
-        // Başarılı olursa cevabı React'e geri gönderiyoruz
+        // Başarılı olursa cevabı React'e geri gönder
         res.status(200).json({
             gonderen: 'ai',
             mesaj: aiCevabi,
@@ -34,15 +81,16 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
         });
 
     } catch (error) {
-        console.error("Yapay Zeka Hatası:", error);
+        console.error("Sohbet Hatası:", error);
         res.status(500).json({ hata: "Yapay zeka şu an yanıt veremiyor, lütfen birazdan tekrar deneyin." });
     }
 };
 
+// Seans kaydetme fonksiyonun (endSession) kusursuz olduğu için aynen bırakıyorum
 export const endSession = async (req: Request, res: Response): Promise<void> => {
     try {
         const { mesajlar } = req.body;
-        
+
         if (!mesajlar || mesajlar.length === 0) {
             res.status(400).json({ hata: "Kaydedilecek mesaj bulunamadı." });
             return;
