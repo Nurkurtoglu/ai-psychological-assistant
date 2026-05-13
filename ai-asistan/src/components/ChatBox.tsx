@@ -1,4 +1,4 @@
-import { Brain, Bell, Phone, Smile, Leaf, Zap, Frown, Mic, Send } from 'lucide-react';
+import { Brain, Smile, Leaf, Zap, Frown, Send } from 'lucide-react';
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
@@ -21,10 +21,20 @@ function ChatBox({ mesajlar, setMesajlar, anlikDuygu, yukleniyor, setYukleniyor 
     const handleSeansBitir = async () => {
         if (mesajlar.length === 0) return;
         setYukleniyor(true);
+
+        // 1. Tarayıcıdan giriş biletini alıyoruz
+        const token = localStorage.getItem('token');
+
         try {
             const response = await axios.post('http://localhost:3000/api/chat/save-session', {
                 mesajlar
+            }, {
+                // 2. Bekçiye bileti burada gösteriyoruz
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
             });
+
             if (response.status === 200) {
                 alert("Seans başarıyla kaydedildi!");
                 setMesajlar([]); // Sohbeti temizle
@@ -48,12 +58,20 @@ function ChatBox({ mesajlar, setMesajlar, anlikDuygu, yukleniyor, setYukleniyor 
         setMesaj('');
         setYukleniyor(true);
 
+        // 1. Tarayıcıdan giriş biletini alıyoruz
+        const token = localStorage.getItem('token');
+
         try {
             const response = await axios.post('http://localhost:3000/api/chat/send', {
                 kullaniciMesaji: yeniMesaj.mesaj,
                 anlikDuygu
+            }, {
+                // 2. Bekçiye bileti burada gösteriyoruz
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
             });
-            
+
             if (response.status === 200) {
                 setMesajlar((prev) => [...prev, { gonderen: 'ai', mesaj: response.data.mesaj }]);
             } else {
@@ -79,13 +97,7 @@ function ChatBox({ mesajlar, setMesajlar, anlikDuygu, yukleniyor, setYukleniyor 
             <div className="flex justify-between items-center p-6">
                 <span className="text-slate-400 italic text-sm">Her zaman yanındayız.</span>
                 <div className="flex items-center gap-4">
-                    <button className="text-slate-400 hover:text-slate-600 transition">
-                        <Bell size={20} />
-                    </button>
-                    <button className="flex items-center gap-2 bg-green-50 text-green-600 px-4 py-2 rounded-full font-medium text-sm hover:bg-green-100 transition">
-                        <Phone size={16} />
-                        Destek Hattı
-                    </button>
+
                     <button
                         onClick={handleSeansBitir}
                         disabled={yukleniyor || mesajlar.length === 0}
@@ -173,7 +185,7 @@ function ChatBox({ mesajlar, setMesajlar, anlikDuygu, yukleniyor, setYukleniyor 
                         </div>
                     </div>
                 )}
-                
+
                 <div ref={messagesEndRef} />
             </div>
 
@@ -188,10 +200,8 @@ function ChatBox({ mesajlar, setMesajlar, anlikDuygu, yukleniyor, setYukleniyor 
                         onChange={(e) => setMesaj(e.target.value)}
                         onKeyDown={handleKeyDown}
                     />
-                    <button className="p-2 text-slate-400 hover:text-slate-600 transition">
-                        <Mic size={20} />
-                    </button>
-                    <button 
+
+                    <button
                         onClick={handleGonder}
                         disabled={yukleniyor}
                         className="p-3 bg-green-500 text-white rounded-full hover:bg-green-600 transition shadow-md ml-1 disabled:opacity-50"

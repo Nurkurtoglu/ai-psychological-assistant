@@ -1,40 +1,21 @@
-import { useState } from 'react';
-
-import CameraWidget from './components/CameraWidget';
-import LeftMenu from './components/LeftMenu';
-import ChatBox from './components/ChatBox';
-import RightMenu from './components/RightMenu';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import AuthPage from './pages/AuthPage';
+import ChatPage from './pages/ChatPage';
+import HistoryPage from './pages/HistoryPage';
 
 function App() {
 
-  const [mesajlar, setMesajlar] = useState<{ gonderen: string, mesaj: string }[]>([]);
-  const [yukleniyor, setYukleniyor] = useState(false);
-  //const [mesaj, setMesaj] = useState('');
-  const [anlikDuygu, setAnlikDuygu] = useState('Nötr 😐');
-
-
-
   return (
-    <div className="flex h-screen w-full bg-white font-sans text-slate-800 overflow-hidden">
+    <Routes>
+      {/* 1. Kural: Ana sayfaya ("/") giren kişiye Giriş/Kayıt ekranını göster */}
+      <Route path="/" element={<AuthPage />} />
 
-      {/* 1. BÖLME: SOL PANEL (Menü) */}
-      <LeftMenu />
-
-
-      {/* 2. BÖLME: ORTA PANEL (Chat Alanı) */}
-      <ChatBox
-        mesajlar={mesajlar}
-        setMesajlar={setMesajlar}
-        anlikDuygu={anlikDuygu}
-        yukleniyor={yukleniyor}
-        setYukleniyor={setYukleniyor}
-      />
-      <CameraWidget onEmotionChange={setAnlikDuygu} />
-
-      {/* 3. BÖLME: SAĞ PANEL (Widget'lar) */}
-      <RightMenu />
-
-    </div>
+      {/* 2. Kural: "/chat" adresine giden kişiye Sohbet ekranını göster */}
+      <Route path="/chat" element={<ChatPage />} />
+      <Route path="/history" element={<HistoryPage />} />
+      {/* 3. Kural: Bunlar dışında rastgele bir adrese (örn: "/deneme") gidilirse ana sayfaya geri at */}
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
   );
 }
 

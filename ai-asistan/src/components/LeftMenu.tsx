@@ -1,9 +1,11 @@
 //import React from 'react'
 import {
-    Brain, MessageSquare, BarChart2, Wind, BookOpen, Settings,
+    Brain, MessageSquare, Settings,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 function LeftMenu() {
+    const navigate = useNavigate();
     // <div>{/* 1. BÖLME: SOL PANEL (Menü) */}
     //        {/*w-[20%] border-r border-slate-200 flex flex-col justify-between p-4  */}
 
@@ -25,29 +27,14 @@ function LeftMenu() {
                 {/* Menü Linkleri */}
                 <div className="text-xs text-slate-400 font-semibold mb-3 px-2">ANA MENÜ</div>
                 <nav className="flex flex-col gap-1">
-                    <button className="flex items-center gap-3 bg-green-500 text-white px-4 py-3 rounded-2xl font-medium w-full shadow-sm hover:bg-green-600 transition">
-                        <MessageSquare size={18} />
-                        Chat History
-                    </button>
-                    <button className="flex items-center gap-3 text-slate-600 hover:bg-slate-50 px-4 py-3 rounded-2xl font-medium w-full transition">
-                        <BarChart2 size={18} />
-                        Duygu Takpçim
-                    </button>
-                    <button className="flex items-center gap-3 text-slate-600 hover:bg-slate-50 px-4 py-3 rounded-2xl font-medium w-full transition">
-                        <Wind size={18} />
-                        Nefes Egzersizi
-                    </button>
-                    <button className="flex items-center gap-3 text-slate-600 hover:bg-slate-50 px-4 py-3 rounded-2xl font-medium w-full transition">
-                        <BookOpen size={18} />
-                        Kaynaklar
+                    <button className="flex items-center gap-3 bg-green-500 text-white px-4 py-3 rounded-2xl font-medium w-full shadow-sm hover:bg-green-600 transition" onClick={() => navigate('/history')}>
+                        <MessageSquare size={18}
+                        />
+                        Sohbet Geçmişi
                     </button>
                 </nav>
 
-                <div className="text-xs text-slate-400 font-semibold mt-6 mb-3 px-2">HESAP</div>
-                <button className="flex items-center gap-3 text-slate-600 hover:bg-slate-50 px-4 py-3 rounded-2xl font-medium w-full transition">
-                    <Settings size={18} />
-                    Ayarlar
-                </button>
+
             </div>
 
             {/* Kullanıcı Profili (Alt Kısım) */}

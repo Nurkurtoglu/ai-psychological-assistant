@@ -4,6 +4,21 @@ import Session from '../models/Session.js';
 import User from '../models/User.js';
 import Knowledge from '../models/Knowledge.js';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3, delayMs = 5000): Promise<T> => {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await fn();
+        } catch (error: any) {
+            if (i === maxRetries - 1) throw error;
+            console.warn(`[API Hatası] ${error.status || ''} ${error.statusText || 'Bilinmeyen Hata'}. ${delayMs}ms bekleniyor... (Deneme: ${i + 1}/${maxRetries})`);
+            await delay(delayMs);
+        }
+    }
+    throw new Error("Max retries reached");
+};
+
 export const sendMessage = async (req: Request, res: Response): Promise<void> => {
     try {
         const { kullaniciMesaji, anlikDuygu } = req.body;
@@ -16,7 +31,7 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
         // ==========================================
         // 1. RAG SİSTEMİ: MESAJI VEKTÖRE ÇEVİR
         // ==========================================
-        const queryEmbeddingResult = await embeddingModel.embedContent(kullaniciMesaji);
+        const queryEmbeddingResult = await withRetry(() => embeddingModel.embedContent(kullaniciMesaji));
         const queryVector = queryEmbeddingResult.embedding.values;
 
         // ==========================================
@@ -70,7 +85,7 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
       3. Cevabın bir psikoloğun odasındaymış gibi sıcak olsun, bir robot gibi liste sunma.
     `;
 
-        const result = await aiModel.generateContent(finalPrompt);
+        const result = await withRetry(() => aiModel.generateContent(finalPrompt));
         const aiCevabi = result.response.text();
 
         // Başarılı olursa cevabı React'e geri gönder
@@ -86,10 +101,27 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// Seans kaydetme fonksiyonun (endSession) kusursuz olduğu için aynen bırakıyorum
-export const endSession = async (req: Request, res: Response): Promise<void> => {
+// --- YENİ EKLENECEK FONKSİYON ---
+export const getHistory = async (req: any, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.id; // Kimliği biletten okuduk
+
+        // Veritabanından sadece bu kullanıcıya ait seansları en yeniden eskiye sıralayarak bul
+        const gecmisSeanslar = await Session.find({ kullaniciId: userId }).sort({ createdAt: -1 });
+
+        res.status(200).json(gecmisSeanslar);
+    } catch (error) {
+        console.error("Geçmiş getirme hatası:", error);
+        res.status(500).json({ hata: "Geçmiş seanslar yüklenemedi." });
+    }
+};
+
+/// --- GÜNCELLENECEK FONKSİYON (endSession) ---
+// Eski endSession fonksiyonunu tamamen bununla değiştir ki artık Test kullanıcısına değil, gerçek kişiye kaydetsin.
+export const endSession = async (req: any, res: Response): Promise<void> => {
     try {
         const { mesajlar } = req.body;
+        const userId = req.user?.id; // Kullanıcıyı artık biletten tanıyoruz!
 
         if (!mesajlar || mesajlar.length === 0) {
             res.status(400).json({ hata: "Kaydedilecek mesaj bulunamadı." });
@@ -105,24 +137,17 @@ export const endSession = async (req: Request, res: Response): Promise<void> => 
                 "ozet": "string",
                 "baskinDuygu": "string"
             }
-
             Sohbet:
             ${sohbetMetni}
         `;
 
         const result = await aiModel.generateContent(prompt);
         let aiCevabi = result.response.text();
-
         aiCevabi = aiCevabi.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(aiCevabi);
 
-        let user = await User.findOne();
-        if (!user) {
-            user = await User.create({ adSoyad: 'Test Kullanıcısı', email: 'test@example.com', sifre: '123456' });
-        }
-
         const yeniOturum = await Session.create({
-            kullaniciId: user._id,
+            kullaniciId: userId, // Artık tamamen dinamik ve güvenli
             baskinDuygu: parsed.baskinDuygu,
             aiOzeti: parsed.ozet
         });
